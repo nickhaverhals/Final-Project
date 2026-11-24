@@ -12,5 +12,55 @@ In this Final Project, I am going to be using a dataset I found on Basketball Re
 
 A few notes to make on the data: First, I'm interested in what is more likely to earn a player playing time but I wanted to control for injuries so I created a column in the dataset which calculated my actual response variable: minutes played per game (`MPG`). Next, there were "missing" values in the 3 point percentage column (`3P%`) that reflected players that didn't attempt a 3 point shot (players who attempted at least one, but didn't make any, already had a value of `0` here). I added `0`'s in the places with missing cells, but I plan on using the `3P` column (made 3 point shots per 36 minutes played) so it should not make a difference in my analysis. Finally, I chose to export the data on a per 36 minutes basis, as cumulative total statistics will be heavily influenced by total minutes played.
 
-There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3p`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), and points (`PTS`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]) is reported, but I thought combining these might deprive the model of some information, so I left them separate. 
+There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3P`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), and points (`PTS`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]) is reported, but I thought combining these might deprive the model of some information, so I left them separate. 
+
+# Reading in data, setting up libraries
+
+Next, I will read in the data set and load the libraries I'll need for the modeling process. 
+
+```{r}
+#| warning: false
+#| message: false
+# Load packages for data preparation, visualization, and modeling
+library(lubridate)
+library(tidyverse)
+library(ggplot2)
+library(tidymodels)
+
+#Create data tibble
+
+min_played<-read_csv("../2025-26_NBA_Player_Stats_Per_36.csv")
+
+min_played
+```
+
+Note that there there was very little pre-processing that needed to be done, and it was accomplished before reading the data in. 
+
+Another important thing to mention is that we're dealing with numeric variables across the board here, and all the columns are already formatted properly. 
+
+## Splitting the data
+
+Next up, I'll set a seed (one I'm partial to, $\tau$), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly. 
+
+```{r}
+# Set seed for reproducibility
+set.seed(6.28)
+
+# Split data into training and test sets
+mp_split <- initial_split(
+  min_played, 
+  prop = 0.7,
+  strata = Pos
+)
+
+# Isolate training and test sets
+
+mp_train <- training(mp_split)
+mp_test <- testing(mp_split)
+
+# verify my 70/30 split
+nrow(mp_train)/nrow(min_played)
+nrow(mp_test)/nrow(min_played)
+```
+Pretty good!
 
