@@ -38,9 +38,9 @@ Note that there there was very little pre-processing that needed to be done, and
 
 Another important thing to mention is that we're dealing with numeric variables across the board here, and all the columns are already formatted properly. 
 
-## Splitting the data
+# Splitting the data
 
-Next up, I'll set a seed (one I'm partial to, $\tau$), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly. 
+Next up, I'll set a seed (one I'm partial to, $\approx \tau$), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly. 
 
 ```{r}
 # Set seed for reproducibility
@@ -62,5 +62,91 @@ mp_test <- testing(mp_split)
 nrow(mp_train)/nrow(min_played)
 nrow(mp_test)/nrow(min_played)
 ```
-Pretty good!
+Pretty good! Next, let's check on how the various positions are represented in the training and test sets: 
+
+```{r}
+# Positional representation
+
+table(mp_train$Pos)
+table(mp_test$Pos)
+```
+It was a bit striking to see that there were so many more shooting guards on NBA rosters but, in retrospect, that makes some sense given these players can often slide up (to small forward) or down (to point guard) as needed, which increases their value. 
+
+# Creating Cross-Validation Folds
+
+Next up is to create five cross-validation (CV) folds. For the models we'll be looking at, we'll fit using four of the folds and evaluate the resulting prediction on the fifth fold (all within the training dataset). These folds will be kept consistent between the models we use for fitting. 
+
+```{r}
+# Set seed
+set.seed(6.28)
+
+# Create five folds within training set
+mp_folds <- vfold_cv(
+  mp_train,
+  v=5
+)
+```
+
+
+# Fitting models
+
+## Regression Tree Explanation
+
+As mentioned above, we'll be using a variety of predictors in our model and we'll be predicting a numeric variable. So, we'll be using a regression tree here. With a regression tree, the predictor space is divided into regions and then, when making predictions, the observation is placed into one of these regions and (typically) the prediction is the average of the observed values in that region. 
+
+To create these regions, every value of the predictor is used as a potential  splitting point and the squared error loss is calculated. Then, the minimum loss is found and the corresponding value for the prediction variable is used as the splitting point. This creates a branching effect (at each node) and then the process can be repeated down each branch, growing the tree. Of course, this process can lead to too many splits (too "large" a tree) and so these trees are often pruned back to avoid overfitting the data. 
+
+## Setting up the Regression Tree
+
+Before moving on, we should point out that a recipe isn't really necessary here because (a) a regression tree doesn't require predictors to be normalized and (b) we won't be including any dummy variables to account for qualitative variables. 
+
+Next up, though, we will need to look at the hyperparameters we'd like to tune: 
+
+```{r}
+#Identify hyperparameters
+rt_tune_spec <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune()
+) |>
+  set_engine("rpart") |>
+  set_mode("regression")
+```
+
+The next thing we'll need is a `tree_grid` for use in the tuning process. 
+
+```{r}
+rt_tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          levels = 5)
+```
+
+With that, we're ready for our workflow and CV resamples: 
+
+```{r}
+#set seed for reproducibility
+set.seed(6.288)
+
+#Define workflow
+rt_wf <- workflow() |>
+  add_model(rt_tune_spec)|>
+  add_formula(MPG ~ `3P` + `FT` + `TRB` + `AST` + `STL` + `BLK` + `TOV` + `PF`)
+  
+
+#Set up resamples
+rt_res <- rt_wf |>
+  tune_grid(
+    resamples = mp_folds,
+    grid = rt_tree_grid
+  )
+
+#View results
+rt_res
+```
+
+Let's see what we have here: 
+
+```{r}
+# Collect metrics
+rt_res |> collect_metrics()
+```
 
