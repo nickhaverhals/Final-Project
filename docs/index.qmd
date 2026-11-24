@@ -1,0 +1,16 @@
+---
+title: "Modeling File"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+# Introduction
+
+In this Final Project, I am going to be using a dataset I found on Basketball Reference: [2025-26 NBA Player Stats: Totals](https://www.basketball-reference.com/leagues/NBA_2026_per_minute.html). The dataset features data from the 2025-2026 NBA season. Note that I am interested in predicting the number of minutes played and, since the website would only allow me to retrieve the top 500 players, I sorted by that variable before exporting the file.
+
+A few notes to make on the data: First, I'm interested in what is more likely to earn a player playing time but I wanted to control for injuries so I created a column in the dataset which calculated my actual response variable: minutes played per game (`MPG`). Next, there were "missing" values in the 3 point percentage column (`3P%`) that reflected players that didn't attempt a 3 point shot (players who attempted at least one, but didn't make any, already had a value of `0` here). I added `0`'s in the places with missing cells, but I plan on using the `3P` column (made 3 point shots per 36 minutes played) so it should not make a difference in my analysis. Finally, I chose to export the data on a per 36 minutes basis, as cumulative total statistics will be heavily influenced by total minutes played.
+
+There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3p`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), and points (`PTS`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]) is reported, but I thought combining these might deprive the model of some information, so I left them separate. 
+
