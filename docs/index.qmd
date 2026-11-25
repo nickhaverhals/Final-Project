@@ -12,7 +12,7 @@ In this Final Project, I am going to be using a dataset I found on Basketball Re
 
 A few notes to make on the data: First, I'm interested in what is more likely to earn a player playing time but I wanted to control for injuries so I created a column in the dataset which calculated my actual response variable: minutes played per game (`MPG`). Next, there were "missing" values in the 3 point percentage column (`3P%`) that reflected players that didn't attempt a 3 point shot (players who attempted at least one, but didn't make any, already had a value of `0` here). I added `0`'s in the places with missing cells, but I plan on using the `3P` column (made 3 point shots per 36 minutes played) so it should not make a difference in my analysis. Finally, I chose to export the data on a per 36 minutes basis, as cumulative total statistics will be heavily influenced by total minutes played.
 
-There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3P`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), and points (`PTS`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]) is reported, but I thought combining these might deprive the model of some information, so I left them separate. 
+There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3P`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), points (`PTS`), and position (`Pos`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]). I thought combining these might deprive the model of some information (in exchange for having few variables, which I thought would be negligibly helpful), so I left them separate. 
 
 # Reading in data, setting up libraries
 
@@ -36,7 +36,7 @@ min_played
 
 Note that there there was very little pre-processing that needed to be done, and it was accomplished before reading the data in. 
 
-Another important thing to mention is that we're dealing with numeric variables across the board here, and all the columns are already formatted properly. 
+Another important thing to mention is that we're dealing with numeric variables across the board here, with the exception of `Pos`, and all the columns are already formatted properly. 
 
 # Splitting the data
 
@@ -50,8 +50,7 @@ set.seed(6.28)
 mp_split <- initial_split(
   min_played, 
   prop = 0.7,
-  strata = Pos
-)
+ )
 
 # Isolate training and test sets
 
@@ -62,15 +61,7 @@ mp_test <- testing(mp_split)
 nrow(mp_train)/nrow(min_played)
 nrow(mp_test)/nrow(min_played)
 ```
-Pretty good! Next, let's check on how the various positions are represented in the training and test sets: 
-
-```{r}
-# Positional representation
-
-table(mp_train$Pos)
-table(mp_test$Pos)
-```
-It was a bit striking to see that there were so many more shooting guards on NBA rosters but, in retrospect, that makes some sense given these players can often slide up (to small forward) or down (to point guard) as needed, which increases their value. 
+Doesn't get much better! 
 
 # Creating Cross-Validation Folds
 
@@ -96,9 +87,17 @@ As mentioned above, we'll be using a variety of predictors in our model and we'l
 
 To create these regions, every value of the predictor is used as a potential  splitting point and the squared error loss is calculated. Then, the minimum loss is found and the corresponding value for the prediction variable is used as the splitting point. This creates a branching effect (at each node) and then the process can be repeated down each branch, growing the tree. Of course, this process can lead to too many splits (too "large" a tree) and so these trees are often pruned back to avoid overfitting the data. 
 
-## Setting up the Regression Tree
+### Setting up the Regression Tree
 
-Before moving on, we should point out that a recipe isn't really necessary here because (a) a regression tree doesn't require predictors to be normalized and (b) we won't be including any dummy variables to account for qualitative variables. 
+Before moving on, we should set up a recipe that we'll use for the regression tree and random forest models. This will be pretty straightforward since, with these models, we don't need to normalize the variables. We will, though, need the `Pos` variable set up as a dummy variable.  
+
+```{r}
+# Create recipe to be used with both models
+mp_recipe <- recipe(MPG ~ `3P` + FT + TRB + AST + STL + BLK + TOV + PF+ Pos, data = mp_train)|>
+  step_dummy(Pos)
+mp_recipe
+```
+
 
 Next up, though, we will need to look at the hyperparameters we'd like to tune: 
 
@@ -112,24 +111,24 @@ rt_tune_spec <- decision_tree(
   set_mode("regression")
 ```
 
-The next thing we'll need is a `tree_grid` for use in the tuning process. 
+The next thing we'll need is a `tree_grid` for use in the tuning process. Because I have so many variables, I feel like I need to give the model room to make a lot of adjustments (e.g., fine tune the tree's depth). It feels like this might make the process take longer but, with what feels like a small sample size (`n`=500) and only 5 folds, it seems worth a shot. I reserve the right to set it back to 5, as we did in the homework, in which case you wouldn't be reading this anyway.
 
 ```{r}
 rt_tree_grid <- grid_regular(cost_complexity(),
                           tree_depth(),
-                          levels = 5)
+                          levels = 10)
 ```
 
 With that, we're ready for our workflow and CV resamples: 
 
 ```{r}
 #set seed for reproducibility
-set.seed(6.288)
+set.seed(6.28)
 
 #Define workflow
 rt_wf <- workflow() |>
   add_model(rt_tune_spec)|>
-  add_formula(MPG ~ `3P` + `FT` + `TRB` + `AST` + `STL` + `BLK` + `TOV` + `PF`)
+  add_recipe(mp_recipe)
   
 
 #Set up resamples
@@ -149,4 +148,38 @@ Let's see what we have here:
 # Collect metrics
 rt_res |> collect_metrics()
 ```
+
+Let's pare this down a bit, to get a sense for how many models are close to the best: 
+
+```{r}
+# Show top 5 models, by chosen metric
+rt_res |>
+  show_best(metric = "rmse")
+```
+
+Looks like there's a tie at the top, but let's crown a winner anyway.
+
+```{r}
+#Pick the best tree
+best_rt <- rt_res |>
+  select_best(metric = "rmse")
+
+best_rt
+```
+
+Now, to fit the model to the whole training dataset:
+
+```{r}
+#create final workflow
+final_rt_wf <- rt_wf |>
+  finalize_workflow(best_rt)
+
+#Fit final model to training data
+final_rt_fit <- final_rt_wf |>
+  last_fit(mp_split)
+
+final_rt_fit |> collect_metrics()
+```
+
+Nice! We have ourselves a fitted model!
 
