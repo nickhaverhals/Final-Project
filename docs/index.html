@@ -2370,7 +2370,7 @@ window.Quarto = {
 <h1>Introduction</h1>
 <p>In this Final Project, I am going to be using a dataset I found on Basketball Reference: <a href="https://www.basketball-reference.com/leagues/NBA_2026_per_minute.html">2025-26 NBA Player Stats: Totals</a>. The dataset features data from the 2025-2026 NBA season. Note that I am interested in predicting the number of minutes played and, since the website would only allow me to retrieve the top 500 players, I sorted by that variable before exporting the file.</p>
 <p>A few notes to make on the data: First, I’m interested in what is more likely to earn a player playing time but I wanted to control for injuries so I created a column in the dataset which calculated my actual response variable: minutes played per game (<code>MPG</code>). Next, there were “missing” values in the 3 point percentage column (<code>3P%</code>) that reflected players that didn’t attempt a 3 point shot (players who attempted at least one, but didn’t make any, already had a value of <code>0</code> here). I added <code>0</code>’s in the places with missing cells, but I plan on using the <code>3P</code> column (made 3 point shots per 36 minutes played) so it should not make a difference in my analysis. Finally, I chose to export the data on a per 36 minutes basis, as cumulative total statistics will be heavily influenced by total minutes played.</p>
-<p>There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (<code>3P</code>), free throws made (<code>FT</code>), total rebounds (<code>TRB</code>), assists(<code>AST</code>), steals (<code>STL</code>), blocks (<code>BLK</code>), turnovers (<code>TOV</code>), personal fouls (<code>PF</code>), and points (<code>PTS</code>). Note that some of these are often combined in the analysis of NBA players (for instance, often a player’s assist to turnover ratio or “stocks” [steals+blocks]) is reported, but I thought combining these might deprive the model of some information, so I left them separate.</p>
+<p>There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (<code>3P</code>), free throws made (<code>FT</code>), total rebounds (<code>TRB</code>), assists(<code>AST</code>), steals (<code>STL</code>), blocks (<code>BLK</code>), turnovers (<code>TOV</code>), personal fouls (<code>PF</code>), points (<code>PTS</code>), and position (<code>Pos</code>). Note that some of these are often combined in the analysis of NBA players (for instance, often a player’s assist to turnover ratio or “stocks” [steals+blocks]). I thought combining these might deprive the model of some information (in exchange for having few variables, which I thought would be negligibly helpful), so I left them separate.</p>
 </section>
 <section id="reading-in-data-setting-up-libraries" class="level1">
 <h1>Reading in data, setting up libraries</h1>
@@ -2409,10 +2409,11 @@ window.Quarto = {
 </div>
 </div>
 <p>Note that there there was very little pre-processing that needed to be done, and it was accomplished before reading the data in.</p>
-<p>Another important thing to mention is that we’re dealing with numeric variables across the board here, and all the columns are already formatted properly.</p>
-<section id="splitting-the-data" class="level2">
-<h2 class="anchored" data-anchor-id="splitting-the-data">Splitting the data</h2>
-<p>Next up, I’ll set a seed (one I’m partial to, <span class="math inline">\(\tau\)</span>), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly.</p>
+<p>Another important thing to mention is that we’re dealing with numeric variables across the board here, with the exception of <code>Pos</code>, and all the columns are already formatted properly.</p>
+</section>
+<section id="splitting-the-data" class="level1">
+<h1>Splitting the data</h1>
+<p>Next up, I’ll set a seed (one I’m partial to, <span class="math inline">\(\approx \tau\)</span>), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Set seed for reproducibility</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="fl">6.28</span>)</span>
@@ -2421,25 +2422,203 @@ window.Quarto = {
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>mp_split <span class="ot">&lt;-</span> <span class="fu">initial_split</span>(</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  min_played, </span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">prop =</span> <span class="fl">0.7</span>,</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">strata =</span> Pos</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Isolate training and test sets</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>mp_train <span class="ot">&lt;-</span> <span class="fu">training</span>(mp_split)</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>mp_test <span class="ot">&lt;-</span> <span class="fu">testing</span>(mp_split)</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co"># verify my 70/30 split</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(mp_train)<span class="sc">/</span><span class="fu">nrow</span>(min_played)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a> )</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Isolate training and test sets</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>mp_train <span class="ot">&lt;-</span> <span class="fu">training</span>(mp_split)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>mp_test <span class="ot">&lt;-</span> <span class="fu">testing</span>(mp_split)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># verify my 70/30 split</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(mp_train)<span class="sc">/</span><span class="fu">nrow</span>(min_played)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 0.694</code></pre>
+<pre><code>[1] 0.7</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(mp_test)<span class="sc">/</span><span class="fu">nrow</span>(min_played)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 0.306</code></pre>
+<pre><code>[1] 0.3</code></pre>
 </div>
 </div>
-<p>Pretty good!</p>
+<p>Doesn’t get much better!</p>
+</section>
+<section id="creating-cross-validation-folds" class="level1">
+<h1>Creating Cross-Validation Folds</h1>
+<p>Next up is to create five cross-validation (CV) folds. For the models we’ll be looking at, we’ll fit using four of the folds and evaluate the resulting prediction on the fifth fold (all within the training dataset). These folds will be kept consistent between the models we use for fitting.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Set seed</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="fl">6.28</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create five folds within training set</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>mp_folds <span class="ot">&lt;-</span> <span class="fu">vfold_cv</span>(</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  mp_train,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">v=</span><span class="dv">5</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="fitting-models" class="level1">
+<h1>Fitting models</h1>
+<section id="regression-tree-explanation" class="level2">
+<h2 class="anchored" data-anchor-id="regression-tree-explanation">Regression Tree Explanation</h2>
+<p>As mentioned above, we’ll be using a variety of predictors in our model and we’ll be predicting a numeric variable. So, we’ll be using a regression tree here. With a regression tree, the predictor space is divided into regions and then, when making predictions, the observation is placed into one of these regions and (typically) the prediction is the average of the observed values in that region.</p>
+<p>To create these regions, every value of the predictor is used as a potential splitting point and the squared error loss is calculated. Then, the minimum loss is found and the corresponding value for the prediction variable is used as the splitting point. This creates a branching effect (at each node) and then the process can be repeated down each branch, growing the tree. Of course, this process can lead to too many splits (too “large” a tree) and so these trees are often pruned back to avoid overfitting the data.</p>
+<section id="setting-up-the-regression-tree" class="level3">
+<h3 class="anchored" data-anchor-id="setting-up-the-regression-tree">Setting up the Regression Tree</h3>
+<p>Before moving on, we should set up a recipe that we’ll use for the regression tree and random forest models. This will be pretty straightforward since, with these models, we don’t need to normalize the variables. We will, though, need the <code>Pos</code> variable set up as a dummy variable.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create recipe to be used with both models</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>mp_recipe <span class="ot">&lt;-</span> <span class="fu">recipe</span>(MPG <span class="sc">~</span> <span class="st">`</span><span class="at">3P</span><span class="st">`</span> <span class="sc">+</span> FT <span class="sc">+</span> TRB <span class="sc">+</span> AST <span class="sc">+</span> STL <span class="sc">+</span> BLK <span class="sc">+</span> TOV <span class="sc">+</span> PF<span class="sc">+</span> Pos, <span class="at">data =</span> mp_train)<span class="sc">|&gt;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(Pos)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>mp_recipe</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code></code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Recipe ──────────────────────────────────────────────────────────────────────</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code></code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Inputs </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Number of variables by role</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>outcome:   1
+predictor: 9</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code></code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Operations </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>• Dummy variables from: Pos</code></pre>
+</div>
+</div>
+<p>Next up, though, we will need to look at the hyperparameters we’d like to tune:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Identify hyperparameters</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>rt_tune_spec <span class="ot">&lt;-</span> <span class="fu">decision_tree</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">cost_complexity =</span> <span class="fu">tune</span>(),</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">tree_depth =</span> <span class="fu">tune</span>()</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_engine</span>(<span class="st">&quot;rpart&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_mode</span>(<span class="st">&quot;regression&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>The next thing we’ll need is a <code>tree_grid</code> for use in the tuning process. Because I have so many variables, I feel like I need to give the model room to make a lot of adjustments (e.g., fine tune the tree’s depth). It feels like this might make the process take longer but, with what feels like a small sample size (<code>n</code>=500) and only 5 folds, it seems worth a shot. I reserve the right to set it back to 5, as we did in the homework, in which case you wouldn’t be reading this anyway.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>rt_tree_grid <span class="ot">&lt;-</span> <span class="fu">grid_regular</span>(<span class="fu">cost_complexity</span>(),</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>                          <span class="fu">tree_depth</span>(),</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                          <span class="at">levels =</span> <span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>With that, we’re ready for our workflow and CV resamples:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">#set seed for reproducibility</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="fl">6.28</span>)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co">#Define workflow</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>rt_wf <span class="ot">&lt;-</span> <span class="fu">workflow</span>() <span class="sc">|&gt;</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_model</span>(rt_tune_spec)<span class="sc">|&gt;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_recipe</span>(mp_recipe)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="co">#Set up resamples</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>rt_res <span class="ot">&lt;-</span> rt_wf <span class="sc">|&gt;</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tune_grid</span>(</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">resamples =</span> mp_folds,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">grid =</span> rt_tree_grid</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a><span class="co">#View results</span></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>rt_res</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># Tuning results
+# 5-fold cross-validation 
+# A tibble: 5 × 4
+  splits           id    .metrics           .notes          
+  &lt;list&gt;           &lt;chr&gt; &lt;list&gt;             &lt;list&gt;          
+1 &lt;split [280/70]&gt; Fold1 &lt;tibble [200 × 6]&gt; &lt;tibble [0 × 4]&gt;
+2 &lt;split [280/70]&gt; Fold2 &lt;tibble [200 × 6]&gt; &lt;tibble [0 × 4]&gt;
+3 &lt;split [280/70]&gt; Fold3 &lt;tibble [200 × 6]&gt; &lt;tibble [0 × 4]&gt;
+4 &lt;split [280/70]&gt; Fold4 &lt;tibble [200 × 6]&gt; &lt;tibble [0 × 4]&gt;
+5 &lt;split [280/70]&gt; Fold5 &lt;tibble [200 × 6]&gt; &lt;tibble [0 × 4]&gt;</code></pre>
+</div>
+</div>
+<p>Let’s see what we have here:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Collect metrics</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>rt_res <span class="sc">|&gt;</span> <span class="fu">collect_metrics</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 200 × 8
+   cost_complexity tree_depth .metric .estimator  mean     n std_err .config    
+             &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;      
+ 1    0.0000000001          1 rmse    standard   6.62      5  0.182  pre0_mod00…
+ 2    0.0000000001          1 rsq     standard   0.173     5  0.0201 pre0_mod00…
+ 3    0.0000000001          2 rmse    standard   6.62      5  0.164  pre0_mod00…
+ 4    0.0000000001          2 rsq     standard   0.183     5  0.0220 pre0_mod00…
+ 5    0.0000000001          4 rmse    standard   6.47      5  0.216  pre0_mod00…
+ 6    0.0000000001          4 rsq     standard   0.234     5  0.0389 pre0_mod00…
+ 7    0.0000000001          5 rmse    standard   6.35      5  0.233  pre0_mod00…
+ 8    0.0000000001          5 rsq     standard   0.265     5  0.0415 pre0_mod00…
+ 9    0.0000000001          7 rmse    standard   6.63      5  0.296  pre0_mod00…
+10    0.0000000001          7 rsq     standard   0.232     5  0.0486 pre0_mod00…
+# ℹ 190 more rows</code></pre>
+</div>
+</div>
+<p>Let’s pare this down a bit, to get a sense for how many models are close to the best:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Show top 5 models, by chosen metric</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>rt_res <span class="sc">|&gt;</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">show_best</span>(<span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 8
+  cost_complexity tree_depth .metric .estimator  mean     n std_err .config     
+            &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;       
+1    0.0000000001          5 rmse    standard    6.35     5   0.233 pre0_mod004…
+2    0.000000001           5 rmse    standard    6.35     5   0.233 pre0_mod014…
+3    0.00000001            5 rmse    standard    6.35     5   0.233 pre0_mod024…
+4    0.0000001             5 rmse    standard    6.35     5   0.233 pre0_mod034…
+5    0.000001              5 rmse    standard    6.35     5   0.233 pre0_mod044…</code></pre>
+</div>
+</div>
+<p>Looks like there’s a tie at the top, but let’s crown a winner anyway.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Pick the best tree</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>best_rt <span class="ot">&lt;-</span> rt_res <span class="sc">|&gt;</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select_best</span>(<span class="at">metric =</span> <span class="st">&quot;rmse&quot;</span>)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>best_rt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 3
+  cost_complexity tree_depth .config          
+            &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;            
+1    0.0000000001          5 pre0_mod004_post0</code></pre>
+</div>
+</div>
+<p>Now, to fit the model to the whole training dataset:</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co">#create final workflow</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>final_rt_wf <span class="ot">&lt;-</span> rt_wf <span class="sc">|&gt;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">finalize_workflow</span>(best_rt)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Fit final model to training data</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>final_rt_fit <span class="ot">&lt;-</span> final_rt_wf <span class="sc">|&gt;</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">last_fit</span>(mp_split)</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>final_rt_fit <span class="sc">|&gt;</span> <span class="fu">collect_metrics</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 4
+  .metric .estimator .estimate .config        
+  &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;          
+1 rmse    standard       5.97  pre0_mod0_post0
+2 rsq     standard       0.232 pre0_mod0_post0</code></pre>
+</div>
+</div>
+<p>Nice! We have ourselves a fitted model!</p>
+</section>
 </section>
 </section>
 
