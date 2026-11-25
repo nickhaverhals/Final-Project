@@ -26,6 +26,7 @@ library(lubridate)
 library(tidyverse)
 library(ggplot2)
 library(tidymodels)
+library(ranger)
 
 #Create data tibble
 
@@ -87,13 +88,13 @@ As mentioned above, we'll be using a variety of predictors in our model and we'l
 
 To create these regions, every value of the predictor is used as a potential  splitting point and the squared error loss is calculated. Then, the minimum loss is found and the corresponding value for the prediction variable is used as the splitting point. This creates a branching effect (at each node) and then the process can be repeated down each branch, growing the tree. Of course, this process can lead to too many splits (too "large" a tree) and so these trees are often pruned back to avoid overfitting the data. 
 
-### Setting up the Regression Tree
+### Setting up the Regression Tree Model
 
 Before moving on, we should set up a recipe that we'll use for the regression tree and random forest models. This will be pretty straightforward since, with these models, we don't need to normalize the variables. We will, though, need the `Pos` variable set up as a dummy variable.  
 
 ```{r}
 # Create recipe to be used with both models
-mp_recipe <- recipe(MPG ~ `3P` + FT + TRB + AST + STL + BLK + TOV + PF+ Pos, data = mp_train)|>
+mp_recipe <- recipe(MPG ~ `3P` + FT + TRB + AST + STL + BLK + TOV + PF+ PTS + Pos, data = mp_train)|>
   step_dummy(Pos)
 mp_recipe
 ```
@@ -181,5 +182,194 @@ final_rt_fit <- final_rt_wf |>
 final_rt_fit |> collect_metrics()
 ```
 
-Nice! We have ourselves a fitted model!
+Nice! We have ourselves a fitted model (with an improvement in `rsme`)! 
+
+## Random Forest Explanation
+
+To start understanding random forests, we should start with with the idea behind bagged tree modelling. There, what happens is we would use either parametric or non-parametric bootstrap sampling to to fit a number of trees. As with all boostrapping, you begin by treating your sample as though it's the population, then sample *with replacement* to create a new sample of the same size as the original. In non-parametric, you do this directly from the original sample.In parametric you assume the sample comes from a particular distribution, estimate the parameters based on your sample, and then sample from that estimated distribution (still with a sample size matching that of the original sample).
+
+Once you have some large number of bootstrap (re)samples, you would then fit a tree to each and finally, in the case of regression trees, we can average the predictions we get from these trees.
+
+In the case of random forests, we do something similar but we don't use all the predictors at each step (split of the tree). Instead, we use a random subset of the predictors (the number used is a hyperparameter determined by tuning). 
+
+The reason we do this is to to cut down on the correlation between models (which can be high when there's a particularly important explanatory variable) and cutting down on the correlation between models can lead to more of a reduction in variance when doing the averaging of predictions (and better predictions overall).
+
+### Setting up the Random Forest Model
+
+We'll actually be able to use a fair amount of the work from above here (including the split and CV folds from the regression tree model). One new thing that will help, though, is knowing how many processor cores we working with, to speed up the process. 
+
+```{r}
+#Find out how many cores
+cores <- parallel::detectCores()
+cores
+```
+
+Now, to create the model itself: 
+
+```{r}
+# Set up model
+rf_mod <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) |> 
+  set_engine("ranger", num.threads = cores, importance = "permutation") |> 
+  set_mode("regression")
+```
+
+Nest, we'll create the workflow to train and tune the model.
+
+```{r}
+#set seed for reproducibility
+set.seed(6.28)
+
+#create final workflow
+rf_wf <- 
+  workflow() |> 
+  add_model(rf_mod) |> 
+  add_recipe(mp_recipe)
+
+#Set up resamples
+rf_res <- 
+  rf_wf |> 
+  tune_grid(mp_folds,
+            grid = 25,
+            control = control_grid(save_pred = TRUE)
+            )
+
+#View results
+rf_res |> collect_metrics()
+```
+
+I see there's more variation in the `rmse`'s here, so let's start narrowing things down. 
+
+```{r}
+rf_res |>
+  show_best(metric = "rmse")
+```
+
+These are looking better than the regression tree models we considered before, but let's fit it to the entire training set and see how things shake out. I'll pause here to note that our best model uses only half (5/10) of our predictor variables at each node (which surprised me). I would've expected that the variables I picked would have been different enough to warrant more of them being included. Having a small `min.n` of 3, though, means the trees run pretty deep. 
+
+```{r}
+#Pick the best model
+best_rf <- rf_res |>
+  select_best(metric = "rmse")
+
+#create final workflow
+final_rf_wf <- rf_wf |>
+  finalize_workflow(best_rf)
+
+#Fit final model to training data
+final_rf_fit <- final_rf_wf |>
+  last_fit(mp_split)
+
+final_rf_fit |> collect_metrics()
+```
+
+As before, we got an improvement here! 
+
+# Comparing the models
+
+Now we're ready to compare the best regression tree and regression models. To start, let's look at the metrics we've seen before side-by-side.
+
+```{r}
+#set seed for reproducibility
+set.seed(6.28)
+
+# Extract the best model metrics from each of the model families
+best_rt_test <- final_rt_wf |>
+  last_fit(mp_split, metrics = metric_set(rmse))
+
+#set seed for reproducibility
+set.seed(6.28)
+
+best_rf_test <- final_rf_wf |>
+  last_fit(mp_split, metrics = metric_set(rmse))
+
+# Combine the model metrics into one table, labeled for clarity
+best_fits <- bind_rows(
+  "Regression Tree" = collect_metrics(best_rt_test),
+  "Random Forest" = collect_metrics(best_rf_test),
+  .id = "model"
+)
+best_fits
+```
+
+## Regression Tree Summary
+
+```{r}
+rt_final_model <- extract_workflow(best_rt_test) 
+rt_final_model |>
+  extract_fit_engine() |>
+  rpart.plot::rpart.plot(roundint = FALSE)
+```
+
+It's really interesting to me that this tree is so simple, *and* only uses offensive statistics. I know that's what most fans focus on but I would have guess coaches (the people who decide on playing time) would have a more nuanced view which would've come through here.
+
+## Random Forest Summary
+
+For this summary, we'll look at the relative importance of each variable (since we don't have a single tree to analyze).
+
+```{r}
+rf_final_model <- best_rf_test |>
+  extract_workflow() |>
+  extract_fit_engine()
+
+# Extract permutation variable importance
+rf_importance <- tibble(
+  term = names(rf_final_model$variable.importance),
+  value = as.numeric(rf_final_model$variable.importance)
+)
+
+# Create the variable importance plot
+rf_importance |>
+  mutate(term = reorder(term, value)) |>
+  ggplot(aes(x = term, y = value)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Random Forest Variable Importance",
+    x = "Predictor",
+    y = "Permutation Importance"
+  ) +
+  theme_minimal()
+```
+
+As before, this skews heavily to the offensive side of the ball. You have to get to the fifth variable (blocks) to get something anything related to defense. Of course, both blocks and steals are relatively rare (and therefore highly variable) events, so it's possible that there's simply too much noise there for that to be of much predictive value. Additionally, both blocks (accrued mostly by front court players) and steals (back court) are relatively position specific, which might have cut down on their importance. Going back to the beginning, perhaps including "stocks" would have been a better choice. 
+
+## Fit the Best Overall Model
+
+```{r}
+# Rank models based on test RMSE
+model_rankings <- best_fits |>
+  filter(.metric == "rmse") |>
+  arrange(.estimate) |>
+  mutate(rank = row_number()) |>
+  select(rank, model, test_rmse = .estimate)
+
+# Display results
+knitr::kable(
+  model_rankings,
+  digits = 2,
+  caption = "Final Model Comparison Based on Test RMSE"
+)
+```
+
+```{r}
+# Declaration of the overall winner!
+best_model_name <- model_rankings$model[1]
+
+best_model_name
+```
+
+Finally, let's fit the winner to the whole data set, not just the training data.
+
+```{r}
+# Fit the selected model using the entire dataset
+set.seed(6.28)
+
+best_overall_fit <- fit(final_rf_wf, data = min_played)
+
+# Display the final fitted model
+best_overall_fit
+```
+
+Now that we have our model, fitted to the entire dataset, we could make predictions for new observations, like data from this year's season or years before last. 
 
