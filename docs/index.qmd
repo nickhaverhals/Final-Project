@@ -39,6 +39,13 @@ Note that there there was very little pre-processing that needed to be done, and
 
 Another important thing to mention is that we're dealing with numeric variables across the board here, with the exception of `Pos`, and all the columns are already formatted properly. 
 
+Just because I'll need it later, let's see what position is the most numerous in our dataset.
+
+```{r}
+table(min_played$Pos)
+```
+Looks like shooting guards, by a lot. That kind of makes sense since there's a premium on guard play now-a-days (along with a dearth of "traditional" point guards). Also, shooting guards often have the ability to occupy three positions (shooting guard, point guard and/or small forward). Typically (it seems to me anyway), players are the other "middle" positions can only move up or down a position (not both). For instance, a small forward may be quick and possess enough ball-handling to spend time at shooting guard but then wouldn't be big enough to play power forward (or vice versa). Similarly, a power forward is likely to be big enough to shift to center or small enough to play small forward, but not both.
+
 # Splitting the data
 
 Next up, I'll set a seed (one I'm partial to, $\approx \tau$), and split the data for modeling purposes (a 70/30 split, as requested). I choose to stratify the data by position, as the roles these players take on during the game can vary wildly. 
@@ -371,5 +378,5 @@ best_overall_fit <- fit(final_rf_wf, data = min_played)
 best_overall_fit
 ```
 
-Now that we have our model, fitted to the entire dataset, we could make predictions for new observations, like data from this year's season or years before last. 
+Now that we have our model, fitted to the entire dataset, we could make predictions for new observations, like data from different seasons or hypothetical values selected by the user of an API. 
 
