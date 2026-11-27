@@ -12,7 +12,7 @@ In this Final Project, I am going to be using a dataset I found on Basketball Re
 
 A few notes to make on the data: First, I'm interested in what is more likely to earn a player playing time but I wanted to control for injuries so I created a column in the dataset which calculated my actual response variable: minutes played per game (`MPG`). Next, there were "missing" values in the 3 point percentage column (`3P%`) that reflected players that didn't attempt a 3 point shot (players who attempted at least one, but didn't make any, already had a value of `0` here). I added `0`'s in the places with missing cells, but I plan on using the `3P` column (made 3 point shots per 36 minutes played) so it should not make a difference in my analysis. Finally, I chose to export the data on a per 36 minutes basis, as cumulative total statistics will be heavily influenced by total minutes played.
 
-There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, all measured per 36 minutes played): three point shots made (`3P`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), points (`PTS`), and position (`Pos`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]). I thought combining these might deprive the model of some information (in exchange for having few variables, which I thought would be negligibly helpful), so I left them separate. 
+There are obviously a lot of player statistics that get tracked but I am going to focus on the following predictor variables (again, with the exception of position, all measured per 36 minutes played): three point shots made (`3P`), free throws made (`FT`), total rebounds (`TRB`), assists(`AST`), steals (`STL`), blocks (`BLK`), turnovers (`TOV`), personal fouls (`PF`), points (`PTS`), and position (`Pos`). Note that some of these are often combined in the analysis of NBA players (for instance, often a player's assist to turnover ratio or "stocks" [steals+blocks]). I thought combining these might deprive the model of some information (in exchange for having fewer variables, which I thought would be negligibly helpful), so I left them separate. 
 
 # Reading in data, setting up libraries
 
@@ -44,7 +44,7 @@ Just because I'll need it later, let's see what position is the most numerous in
 ```{r}
 table(min_played$Pos)
 ```
-Looks like shooting guards, by a lot. That kind of makes sense since there's a premium on guard play now-a-days (along with a dearth of "traditional" point guards). Also, shooting guards often have the ability to occupy three positions (shooting guard, point guard and/or small forward). Typically (it seems to me anyway), players are the other "middle" positions can only move up or down a position (not both). For instance, a small forward may be quick and possess enough ball-handling to spend time at shooting guard but then wouldn't be big enough to play power forward (or vice versa). Similarly, a power forward is likely to be big enough to shift to center or small enough to play small forward, but not both.
+Looks like shooting guards, by a lot. That kind of makes sense since there's a premium on guard play now-a-days (along with a dearth of "traditional" point guards). Also, shooting guards often have the ability to occupy three positions (shooting guard, point guard and/or small forward). This kind of flexibility would seem to be true of the other "middle" positions (a term I just made up) but I think the backcourt/frontcourt division of the positions makes that tougher. It seems to me that small forward are typically more perimeter-oriented (and therefore less likely to "shift up" to power forward) and power forwards are more typically bigger and more likely to shift up (to center), rather than down to small forward. My explanations here are pretty speculative but the prevalence of the shooting guards is, I think, definitively worth noting.
 
 # Splitting the data
 
@@ -339,7 +339,9 @@ rf_importance |>
   theme_minimal()
 ```
 
-As before, this skews heavily to the offensive side of the ball. You have to get to the fifth variable (blocks) to get something anything related to defense. Of course, both blocks and steals are relatively rare (and therefore highly variable) events, so it's possible that there's simply too much noise there for that to be of much predictive value. Additionally, both blocks (accrued mostly by front court players) and steals (back court) are relatively position specific, which might have cut down on their importance. Going back to the beginning, perhaps including "stocks" would have been a better choice. 
+As before, this skews heavily to the offensive side of the ball. You have to get to the fifth variable (blocks) to get something anything related to defense. Of course, both blocks and steals are relatively rare (and therefore highly variable) events, so it's possible that there's simply too much noise there for that to be of much predictive value. Additionally, both blocks (accrued mostly by frontcourt players) and steals (backcourt) are relatively position specific, which might have cut down on their importance. Going back to the beginning, perhaps including "stocks" would have been a better choice. I suspect, though, that if there was something there, then the model would have picked up on that and used position to filter things first, and then use steals and/or blocks as appropriate.
+
+Before finallizing the last best model, I'd like to note that the `rmse`'s (~20% of the typical predictions) have felt high to me for all the models but I don't trust my judgement too much. It could be that my model isn't using the best possible predictors. Another explanation, that feels truer to me, is that defense is hard to quantify and so isn't really captured by the data but **does** rightly play a pretty big role in coaches' decisions.
 
 ## Fit the Best Overall Model
 
@@ -380,3 +382,14 @@ best_overall_fit
 
 Now that we have our model, fitted to the entire dataset, we could make predictions for new observations, like data from different seasons or hypothetical values selected by the user of an API. 
 
+A quick note on the next part of the project: for the examples I'll be including at the bottom of the API, I'll use three players from this year's Minnesota Timberwolves roster: Jayden McDaniels, Ayo Dosunmu, and Joan Beringer. This subset represents a mix positionally (PF*, SG, and C respectively) and in terms of role (full-time starter, reserve who's starting as an injury replacement, and full-time reserve). They also happen to be three of my favorite players at the moment. 
+
+The statistics I'll use are their current averages (as of Nov. 27) and, for comparison's sake, I'll note that their actual minutes played per game and those predicted by the model. 
+
+Jayden McDaniels: (observed: 34.05 MPG, predicted: 25.5467 MPG)
+
+Ayo Dosunmu: (observed: 31.79 MPG, predicted: 24.1035 MPG)
+
+Joan Beringer: (observed: 16.84 MPG, predicted: 16.7442)
+
+*Basketball Reference has Jayden listed as a power forward, but his role  on the team is that of small forward. I'm sure what's going on there.

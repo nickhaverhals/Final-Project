@@ -87,3 +87,14 @@ function(){
     name = "Nick Haverhals",
     URL = "https://nickhaverhals.github.io/Final-Project/")
 }
+
+
+# Prediction URL for Jayden McDaniels (observed: 34.05 MPG, predicted: 25.5467 MPG)
+# http://127.0.0.1:12145/pred?3P=1.8&FT=2.2&TRB=6.7&AST=4&STL=1.3&BLK=0.9&TOV=2.2&PF=3.6&PTS=20.3&Pos=PF
+#
+# Prediction URL for Ayo Dosunmu (observed: 31.79 MPG, predicted: 24.1035 MPG)
+# http://127.0.0.1:12145/pred?3P=2.6&FT=2.0&TRB=4.8&AST=4&STL=1.4&BLK=0.4&TOV=2.7&PF=3.2&PTS=20.4&Pos=SG
+#
+# Prediction URL for Joan Beringer (observed: 16.84 MPG, predicted: 16.7442)
+#http://127.0.0.1:12145/pred?3P=0&FT=2.8&TRB=12.9&AST=0.9&STL=1.1&BLK=3&TOV=1.2&PF=3.3&PTS=10&Pos=C
+#
