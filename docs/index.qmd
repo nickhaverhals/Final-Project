@@ -37,7 +37,18 @@ min_played
 
 Note that there there was very little pre-processing that needed to be done, and it was accomplished before reading the data in. 
 
-Another important thing to mention is that we're dealing with numeric variables across the board here, with the exception of `Pos`, and all the columns are already formatted properly. 
+Another important thing to mention is that we're dealing with numeric variables across the board here, with the exception of `Pos`, and all the columns are already formatted properly. The one thing I will need to do, though, is create factors for the position data.
+
+```{r}
+#Establish position categories
+pos_levels <- unique(min_played$Pos)
+
+# Convert Pos to a factor
+min_played$Pos <- factor(min_played$Pos,
+                         levels = pos_levels)
+
+```
+
 
 Just because I'll need it later, let's see what position is the most numerous in our dataset.
 
@@ -341,7 +352,7 @@ rf_importance |>
 
 As before, this skews heavily to the offensive side of the ball. You have to get to the fifth variable (blocks) to get something anything related to defense. Of course, both blocks and steals are relatively rare (and therefore highly variable) events, so it's possible that there's simply too much noise there for that to be of much predictive value. Additionally, both blocks (accrued mostly by frontcourt players) and steals (backcourt) are relatively position specific, which might have cut down on their importance. Going back to the beginning, perhaps including "stocks" would have been a better choice. I suspect, though, that if there was something there, then the model would have picked up on that and used position to filter things first, and then use steals and/or blocks as appropriate.
 
-Before finallizing the last best model, I'd like to note that the `rmse`'s (~20% of the typical predictions) have felt high to me for all the models but I don't trust my judgement too much. It could be that my model isn't using the best possible predictors. Another explanation, that feels truer to me, is that defense is hard to quantify and so isn't really captured by the data but **does** rightly play a pretty big role in coaches' decisions.
+Before finalizing the last best model, I'd like to note that the `rmse`'s (~20% of the mean `MPG`) have felt high to me for all the models but I don't trust my judgement too much. It could be that my model isn't using the best possible predictors. Another explanation, that feels truer to me, is that defense is hard to quantify and so isn't really captured by the data but **does** rightly play a pretty big role in coaches' decisions.
 
 ## Fit the Best Overall Model
 
